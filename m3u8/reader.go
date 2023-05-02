@@ -12,6 +12,9 @@ type state struct {
 	open        bool
 	currentItem Item
 	master      bool
+
+	discontinuity   *DiscontinuityItem
+	programDateTime *TimeItem
 }
 
 // ReadString parses a text string and returns a playlist
@@ -50,7 +53,7 @@ func Read(reader io.Reader) (*Playlist, error) {
 		}
 
 		value := strings.TrimSpace(line)
-		if header && value != HeaderTag {
+		if header && !strings.HasPrefix(value, HeaderTag) {
 			return nil, ErrPlaylistInvalid
 		}
 
@@ -68,6 +71,11 @@ func parseLine(line string, pl *Playlist, st *state) error {
 	var err error
 	switch {
 	// basic tags
+	case matchTag(line, HeaderTag):
+		attrs := strings.TrimSpace(strings.TrimPrefix(line, HeaderTag))
+		if len(attrs) > 0 {
+			pl.Attributes = &attrs
+		}
 	case matchTag(line, VersionTag):
 		pl.Version, err = parseIntPtr(line, VersionTag)
 	// media segment tags
@@ -82,7 +90,7 @@ func parseLine(line string, pl *Playlist, st *state) error {
 		if err != nil {
 			return parseError(line, err)
 		}
-		pl.Items = append(pl.Items, item)
+		st.discontinuity = item
 	case matchTag(line, ByteRangeItemTag):
 		value := strings.Replace(line, ByteRangeItemTag+":", "", -1)
 		value = strings.Replace(value, "\n", "", -1)
@@ -119,15 +127,7 @@ func parseLine(line string, pl *Playlist, st *state) error {
 		if err != nil {
 			return parseError(line, err)
 		}
-		if st.open {
-			item, ok := st.currentItem.(*SegmentItem)
-			if !ok {
-				return parseError(line, ErrSegmentItemInvalid)
-			}
-			item.ProgramDateTime = pdt
-		} else {
-			pl.Items = append(pl.Items, pdt)
-		}
+		st.programDateTime = pdt
 	case matchTag(line, DateRangeItemTag):
 		dri, err := NewDateRangeItem(line)
 		if err != nil {
@@ -227,6 +227,10 @@ func parseNextLine(line string, pl *Playlist, st *state) error {
 			return parseError(line, ErrSegmentItemInvalid)
 		}
 		it.Segment = value
+		it.ProgramDateTime = st.programDateTime
+		it.Discontinuity = st.discontinuity
+		st.programDateTime = nil
+		st.discontinuity = nil
 		pl.Items = append(pl.Items, it)
 	}
 

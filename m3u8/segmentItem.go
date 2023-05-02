@@ -14,6 +14,8 @@ type SegmentItem struct {
 	Comment         *string
 	ProgramDateTime *TimeItem
 	ByteRange       *ByteRange
+	Discontinuity   *DiscontinuityItem
+	Attributes      *string
 }
 
 // NewSegmentItem parses a text line and returns a *SegmentItem
@@ -22,7 +24,8 @@ func NewSegmentItem(text string) (*SegmentItem, error) {
 	line := strings.Replace(text, SegmentItemTag+":", "", -1)
 	line = strings.Replace(line, "\n", "", -1)
 	values := strings.Split(line, ",")
-	d, err := strconv.ParseFloat(values[0], 64)
+	parts := strings.Split(values[0], " ")
+	d, err := strconv.ParseFloat(parts[0], 64)
 	if err != nil {
 		return nil, err
 	}
@@ -30,6 +33,10 @@ func NewSegmentItem(text string) (*SegmentItem, error) {
 	si.Duration = d
 	if len(values) > 1 && values[1] != "" {
 		si.Comment = &values[1]
+	}
+	if len(parts) > 1 {
+		attrs := strings.Join(parts[1:], " ")
+		si.Attributes = &attrs
 	}
 
 	return &si, nil
@@ -42,7 +49,7 @@ func (si *SegmentItem) String() string {
 	}
 	byteRange := ""
 	if si.ByteRange != nil {
-		byteRange = fmt.Sprintf("\n%s:%v", ByteRangeItemTag, si.ByteRange.String())
+		byteRange = fmt.Sprintf("%s:%v\n", ByteRangeItemTag, si.ByteRange.String())
 	}
 
 	comment := ""
@@ -50,5 +57,15 @@ func (si *SegmentItem) String() string {
 		comment = *si.Comment
 	}
 
-	return fmt.Sprintf("%s:%v,%s%s\n%s%s", SegmentItemTag, si.Duration, comment, byteRange, date, si.Segment)
+	discontinuity := ""
+	if si.Discontinuity != nil {
+		discontinuity = si.Discontinuity.String() + "\n"
+	}
+
+	attrs := ""
+	if si.Attributes != nil {
+		attrs = " " + *si.Attributes
+	}
+	return fmt.Sprintf("%s:%v%s,%s\n%s%s%s%s", SegmentItemTag, si.Duration, attrs, comment,
+		byteRange, date, discontinuity, si.Segment)
 }

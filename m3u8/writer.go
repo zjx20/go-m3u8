@@ -24,6 +24,10 @@ func Write(pl *Playlist) (string, error) {
 
 func writeHeader(sb *strings.Builder, pl *Playlist) {
 	sb.WriteString(HeaderTag)
+	if pl.Attributes != nil {
+		sb.WriteRune(' ')
+		sb.WriteString(*pl.Attributes)
+	}
 	sb.WriteRune('\n')
 
 	if pl.IsMaster() {
